@@ -1,26 +1,3 @@
-![Image](./header.png)
-
-# Stylus Hello World
-
-Project starter template for writing Arbitrum Stylus programs in Rust using the [stylus-sdk](https://github.com/OffchainLabs/stylus-sdk-rs). It includes a Rust implementation of a basic counter Ethereum smart contract:
-
-```js
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
-
-contract Counter {
-    uint256 public number;
-
-    function setNumber(uint256 newNumber) public {
-        number = newNumber;
-    }
-
-    function increment() public {
-        number++;
-    }
-}
-```
-
 To set up more minimal example that still uses the Stylus SDK, use `cargo stylus new --minimal <YOUR_PROJECT_NAME>` under [OffchainLabs/cargo-stylus](https://github.com/OffchainLabs/cargo-stylus).
 
 ## Quick Start 
@@ -33,7 +10,7 @@ cargo install --force cargo-stylus cargo-stylus-check
 
 Add the `wasm32-unknown-unknown` build target to your Rust compiler:
 
-```
+```bash
 rustup target add wasm32-unknown-unknown
 ```
 
@@ -43,10 +20,52 @@ You should now have it available as a Cargo subcommand:
 cargo stylus --help
 ```
 
-Then, clone the template:
+### Setup
 
+1. Clone the repository:
+
+```bash
+git clone https://github.com/immersion-robot/stylus_testbed.git
+cd stylus_testbed
 ```
-git clone https://github.com/OffchainLabs/stylus-hello-world && cd stylus-hello-world
+
+2. Initialize and update git submodules:
+
+```bash
+git submodule update --init --recursive
+```
+
+3. Start the local dev node:
+
+```bash
+cd nitro-devnode && ./run-dev-node.sh
+```
+
+4. Deploy the Stylus program (in a new terminal):
+
+```bash
+cargo stylus deploy --private-key <privatekey>
+```
+
+> **Note**: See `.env_example` for the private key format and other configuration options.
+
+5. Create `.env` file (required):
+
+Create a `.env` file in the project root based on `.env_example`:
+
+```bash
+cp .env_example .env
+```
+
+Edit `.env` and set the following variables:
+- `PRIV_KEY`: Your private key
+- `RPC_URL`: RPC endpoint URL (use `http://localhost:8547` for local dev node)
+- `STYLUS_CONTRACT_ADDRESS`: The deployed contract address from step 4
+
+6. Run the test client:
+
+```bash
+cargo run --example test_client
 ```
 
 ### Testnet Information
@@ -94,8 +113,11 @@ export-abi = ["stylus-sdk/export-abi"]
 
 ## Deploying
 
-You can use the `cargo stylus` command to also deploy your program to the Stylus testnet. We can use the tool to first check
-our program compiles to valid WASM for Stylus and will succeed a deployment onchain without transacting. By default, this will use the Stylus testnet public RPC endpoint. See here for [Stylus testnet information](https://docs.arbitrum.io/stylus/reference/testnet-information)
+Before deploying, make sure you have:
+1. Started the local dev node (see Setup step 3)
+2. Your private key ready (see `.env_example` for format)
+
+You can first check that your program compiles to valid WASM for Stylus:
 
 ```bash
 cargo stylus check
@@ -105,93 +127,46 @@ If successful, you should see:
 
 ```bash
 Finished release [optimized] target(s) in 1.88s
-Reading WASM file at stylus-hello-world/target/wasm32-unknown-unknown/release/stylus-hello-world.wasm
+Reading WASM file at target/wasm32-unknown-unknown/release/stylus_testbed.wasm
 Compressed WASM size: 8.9 KB
 Program succeeded Stylus onchain activation checks with Stylus version: 1
 ```
 
-Next, we can estimate the gas costs to deploy and activate our program before we send our transaction. Check out the [cargo-stylus](https://github.com/OffchainLabs/cargo-stylus) README to see the different wallet options for this step:
+To deploy to your local dev node:
 
 ```bash
-cargo stylus deploy \
-  --private-key-path=<PRIVKEY_FILE_PATH> \
-  --estimate-gas
+cargo stylus deploy --private-key <privatekey>
 ```
 
-You will then see the estimated gas cost for deploying before transacting:
+> **Note**: Replace `<privatekey>` with your actual private key. See `.env_example` for the format.
+
+The CLI will send 2 transactions to deploy and activate your program onchain. Once both steps are successful, you can interact with your program as you would with any Ethereum smart contract.
+
+### Testnet Deployment
+
+To deploy to the Stylus testnet instead, you can use the `--rpc-url` flag:
 
 ```bash
-Deploying program to address e43a32b54e48c7ec0d3d9ed2d628783c23d65020
-Estimated gas for deployment: 1874876
+cargo stylus deploy --private-key <privatekey> --rpc-url https://sepolia-rollup.arbitrum.io/rpc
 ```
 
-The above only estimates gas for the deployment tx by default. To estimate gas for activation, first deploy your program using `--mode=deploy-only`, and then run `cargo stylus deploy` with the `--estimate-gas` flag, `--mode=activate-only`, and specify `--activate-program-address`.
-
-
-Here's how to deploy:
-
-```bash
-cargo stylus deploy \
-  --private-key-path=<PRIVKEY_FILE_PATH>
-```
-
-The CLI will send 2 transactions to deploy and activate your program onchain.
-
-```bash
-Compressed WASM size: 8.9 KB
-Deploying program to address 0x457b1ba688e9854bdbed2f473f7510c476a3da09
-Estimated gas: 1973450
-Submitting tx...
-Confirmed tx 0x42db…7311, gas used 1973450
-Activating program at address 0x457b1ba688e9854bdbed2f473f7510c476a3da09
-Estimated gas: 14044638
-Submitting tx...
-Confirmed tx 0x0bdb…3307, gas used 14044638
-```
-
-Once both steps are successful, you can interact with your program as you would with any Ethereum smart contract.
+For more information, see [Stylus testnet information](https://docs.arbitrum.io/stylus/reference/testnet-information).
 
 ## Calling Your Program
 
-This template includes an example of how to call and transact with your program in Rust using [ethers-rs](https://github.com/gakonst/ethers-rs) under the `examples/counter.rs`. However, your programs are also Ethereum ABI equivalent if using the Stylus SDK. **They can be called and transacted with using any other Ethereum tooling.**
+This template includes an example of how to call and transact with your program in Rust using [ethers-rs](https://github.com/gakonst/ethers-rs) under the `examples/test_client.rs`. However, your programs are also Ethereum ABI equivalent if using the Stylus SDK. **They can be called and transacted with using any other Ethereum tooling.**
 
-By using the program address from your deployment step above, and your wallet, you can attempt to call the counter program and increase its value in storage:
+Make sure you have created the `.env` file with the required environment variables (see Setup step 5 above):
 
-```rs
-abigen!(
-    Counter,
-    r#"[
-        function number() external view returns (uint256)
-        function setNumber(uint256 number) external
-        function increment() external
-    ]"#
-);
-let counter = Counter::new(address, client);
-let num = counter.number().call().await;
-println!("Counter number value = {:?}", num);
+- `PRIV_KEY`: Your private key
+- `RPC_URL`: RPC endpoint URL (use `http://localhost:8547` for local dev node)
+- `STYLUS_CONTRACT_ADDRESS`: The deployed contract address
 
-let _ = counter.increment().send().await?.await?;
-println!("Successfully incremented counter via a tx");
+Then run the test client:
 
-let num = counter.number().call().await;
-println!("New counter number value = {:?}", num);
+```bash
+cargo run --example test_client
 ```
-
-Before running, set the following env vars or place them in a `.env` file (see: [.env.example](./.env.example)) in this project:
-
-```
-RPC_URL=https://sepolia-rollup.arbitrum.io/rpc
-STYLUS_CONTRACT_ADDRESS=<the onchain address of your deployed program>
-PRIV_KEY_PATH=<the file path for your priv key to transact with>
-```
-
-Next, run:
-
-```
-cargo run --example counter --target=<YOUR_ARCHITECTURE>
-```
-
-Where you can find `YOUR_ARCHITECTURE` by running `rustc -vV | grep host`. For M1 Apple computers, for example, this is `aarch64-apple-darwin` and for most Linux x86 it is `x86_64-unknown-linux-gnu`
 
 ## Build Options
 
