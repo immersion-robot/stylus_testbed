@@ -1,3 +1,4 @@
+#![cfg(feature = "contract")]
 #![cfg_attr(not(any(feature = "export-abi", test)), no_main)]
 extern crate alloc;
 
@@ -48,7 +49,7 @@ pub struct ContentPurchaseContract {
 impl ContentPurchaseContract {
     pub fn init(&mut self, token_address: Address) -> Result<(), Vec<u8>> {
         if !self.owner.get().is_zero() {
-            return Ok(()); 
+            return Err(Unauthorized {}.abi_encode()); 
         }
         self.owner.set(self.vm().msg_sender());
         self.usdt_address.set(token_address);
