@@ -73,7 +73,7 @@ const Reservations = () => {
               <Button 
                 variant="ghost" 
                 size="sm"
-                onClick={() => window.open(`https://etherscan.io/tx/${reservation.transactionHash}`, '_blank')}
+                onClick={() => window.open(`http://localhost/tx/${reservation.transactionHash}`, '_blank')}
               >
                 <ExternalLink className="w-4 h-4" />
               </Button>

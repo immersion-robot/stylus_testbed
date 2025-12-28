@@ -128,7 +128,7 @@ export function ContentInfoDialog({ open, onOpenChange, file, onSave, walletAddr
   };
 
   const formatDuration = (seconds?: number) => {
-    if (!seconds) return null;
+    if (!seconds || seconds === 0) return null;
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
@@ -234,25 +234,27 @@ export function ContentInfoDialog({ open, onOpenChange, file, onSave, walletAddr
                   <div className="text-sm font-medium">{dimensions.width}×{dimensions.height}</div>
                 </div>
               )}
-              {duration && (
+              {duration !== undefined && duration > 0 && (
                 <div className="bg-muted p-2 rounded-lg text-center">
                   <Clock className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
                   <div className="text-xs text-muted-foreground">Duration</div>
                   <div className="text-sm font-medium">{formatDuration(duration)}</div>
                 </div>
               )}
-              {slideCount && (
+              {slideCount !== undefined && slideCount > 0 && (
                 <div className="bg-muted p-2 rounded-lg text-center">
                   <Layers className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
                   <div className="text-xs text-muted-foreground">Slides</div>
                   <div className="text-sm font-medium">{slideCount} slides</div>
                 </div>
               )}
-              <div className="bg-muted p-2 rounded-lg text-center">
-                <Video className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
-                <div className="text-xs text-muted-foreground">Type</div>
-                <div className="text-sm font-medium truncate">{file?.type.split('/')[1]?.toUpperCase() || 'MP4'}</div>
-              </div>
+              {(file?.type || fileType) && (
+                <div className="bg-muted p-2 rounded-lg text-center">
+                  <Video className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
+                  <div className="text-xs text-muted-foreground">Type</div>
+                  <div className="text-sm font-medium truncate">{(file?.type || fileType).split('/')[1]?.toUpperCase() || 'MP4'}</div>
+                </div>
+              )}
               {dimensions && (
                 <div className="bg-muted p-2 rounded-lg text-center">
                   <Image className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />

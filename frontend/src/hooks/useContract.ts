@@ -98,12 +98,32 @@ export function useContract() {
         spender: CONTRACT_CONFIG.STYLUS_CONTRACT_ADDRESS, 
         amount 
       });
+      
+      // 현재 nonce 확인 (pending 포함)
+      const provider = getProvider();
+      const latestNonce = await provider.getTransactionCount(account, 'latest');
+      const pendingNonce = await provider.getTransactionCount(account, 'pending');
+      console.log('Nonce check before approve:', { latest: latestNonce, pending: pendingNonce });
+      
+      // pending nonce가 더 크면 대기 중인 트랜잭션이 있음을 알림
+      if (pendingNonce > latestNonce) {
+        console.warn(`Pending transactions detected. Latest: ${latestNonce}, Pending: ${pendingNonce}`);
+        toast.warning(`대기 중인 트랜잭션이 ${pendingNonce - latestNonce}개 있습니다. 처리될 때까지 기다려주세요.`, { duration: 4000 });
+        // 대기 중인 트랜잭션이 많으면 진행하지 않음
+        if (pendingNonce - latestNonce > 5) {
+          throw new Error('대기 중인 트랜잭션이 너무 많습니다. 먼저 처리해주세요.');
+        }
+      }
+      
       const usdtContract = await getUSDTContract();
+      
+      // MetaMask가 nonce를 관리하므로, 여기서는 트랜잭션을 직접 보냅니다
+      // MetaMask가 자동으로 올바른 nonce를 사용할 것입니다
       const tx = await usdtContract.approve(
         CONTRACT_CONFIG.STYLUS_CONTRACT_ADDRESS,
         amount
       );
-      console.log('Approve transaction sent:', tx.hash);
+      console.log('Approve transaction sent with nonce:', tx.nonce, 'hash:', tx.hash);
       toast.info('트랜잭션 전송 중...');
       const receipt = await tx.wait();
       console.log('Approve receipt:', receipt);
@@ -117,14 +137,33 @@ export function useContract() {
         reason: error?.reason,
         data: error?.data,
       });
-      if (error.code === 4001 || error.code === 'ACTION_REJECTED' || error?.message?.includes('rejected')) {
+      
+      // Nonce too high 오류 처리
+      if (error?.message?.includes('nonce') || error?.message?.includes('Nonce') || error?.message?.toLowerCase().includes('nonce too high')) {
+        try {
+          const provider = getProvider();
+          const latestNonce = await provider.getTransactionCount(account, 'latest').catch(() => null);
+          const pendingNonce = await provider.getTransactionCount(account, 'pending').catch(() => null);
+          console.error('Nonce error details:', { latestNonce, pendingNonce, error: error.message });
+          
+          const errorMessage = `Nonce 오류 발생!\n\n체인 상태:\n- Latest nonce: ${latestNonce ?? 'N/A'}\n- Pending nonce: ${pendingNonce ?? 'N/A'}\n\n해결 방법:\n1. MetaMask 설정 > 고급 > 계정 재설정\n   (이 작업은 트랜잭션 히스토리를 지웁니다)\n2. 또는 로컬 체인(nitro-devnode)을 재시작\n3. MetaMask에서 보류 중인 트랜잭션 취소`;
+          
+          toast.error(errorMessage, { duration: 10000 });
+        } catch (nonceCheckError) {
+          console.error('Failed to check nonce during error handling:', nonceCheckError);
+          toast.error(
+            'Nonce 오류 발생! MetaMask 설정 > 고급 > 계정 재설정을 시도해주세요.',
+            { duration: 5000 }
+          );
+        }
+      } else if (error.code === 4001 || error.code === 'ACTION_REJECTED' || error?.message?.includes('rejected')) {
         toast.error('사용자가 트랜잭션을 거부했습니다.');
       } else {
         toast.error(`Approve 실패: ${error.message || error.reason || '알 수 없는 오류'}`);
       }
       throw error;
     }
-  }, [account, getUSDTContract]);
+  }, [account, getUSDTContract, getProvider]);
 
   // 콘텐츠 구매
   const purchaseContent = useCallback(async (contentType: number) => {
@@ -132,10 +171,30 @@ export function useContract() {
     
     try {
       console.log('Purchasing content:', { contentType, contractAddress: CONTRACT_CONFIG.STYLUS_CONTRACT_ADDRESS });
+      
+      // 현재 nonce 확인 (pending 포함)
+      const provider = getProvider();
+      const latestNonce = await provider.getTransactionCount(account, 'latest');
+      const pendingNonce = await provider.getTransactionCount(account, 'pending');
+      console.log('Nonce check before purchase:', { latest: latestNonce, pending: pendingNonce });
+      
+      // pending nonce가 더 크면 대기 중인 트랜잭션이 있음을 알림
+      if (pendingNonce > latestNonce) {
+        console.warn(`Pending transactions detected. Latest: ${latestNonce}, Pending: ${pendingNonce}`);
+        toast.warning(`대기 중인 트랜잭션이 ${pendingNonce - latestNonce}개 있습니다. 처리될 때까지 기다려주세요.`, { duration: 4000 });
+        // 대기 중인 트랜잭션이 많으면 진행하지 않음
+        if (pendingNonce - latestNonce > 5) {
+          throw new Error('대기 중인 트랜잭션이 너무 많습니다. 먼저 처리해주세요.');
+        }
+      }
+      
       const contract = await getContentPurchaseContract();
       console.log('Contract instance created');
+      
+      // MetaMask가 nonce를 관리하므로, 여기서는 트랜잭션을 직접 보냅니다
+      // MetaMask가 자동으로 올바른 nonce를 사용할 것입니다
       const tx = await contract.purchaseContent(contentType);
-      console.log('Purchase transaction sent:', tx.hash);
+      console.log('Purchase transaction sent with nonce:', tx.nonce, 'hash:', tx.hash);
       toast.info('구매 트랜잭션 전송 중...');
       const receipt = await tx.wait();
       console.log('Purchase receipt:', receipt);
@@ -149,14 +208,33 @@ export function useContract() {
         reason: error?.reason,
         data: error?.data,
       });
-      if (error.code === 4001 || error.code === 'ACTION_REJECTED' || error?.message?.includes('rejected')) {
+      
+      // Nonce too high 오류 처리
+      if (error?.message?.includes('nonce') || error?.message?.includes('Nonce') || error?.message?.toLowerCase().includes('nonce too high')) {
+        try {
+          const provider = getProvider();
+          const latestNonce = await provider.getTransactionCount(account, 'latest').catch(() => null);
+          const pendingNonce = await provider.getTransactionCount(account, 'pending').catch(() => null);
+          console.error('Nonce error details:', { latestNonce, pendingNonce, error: error.message });
+          
+          const errorMessage = `Nonce 오류 발생!\n\n체인 상태:\n- Latest nonce: ${latestNonce ?? 'N/A'}\n- Pending nonce: ${pendingNonce ?? 'N/A'}\n\n해결 방법:\n1. MetaMask 설정 > 고급 > 계정 재설정\n   (이 작업은 트랜잭션 히스토리를 지웁니다)\n2. 또는 로컬 체인(nitro-devnode)을 재시작\n3. MetaMask에서 보류 중인 트랜잭션 취소`;
+          
+          toast.error(errorMessage, { duration: 10000 });
+        } catch (nonceCheckError) {
+          console.error('Failed to check nonce during error handling:', nonceCheckError);
+          toast.error(
+            'Nonce 오류 발생! MetaMask 설정 > 고급 > 계정 재설정을 시도해주세요.',
+            { duration: 5000 }
+          );
+        }
+      } else if (error.code === 4001 || error.code === 'ACTION_REJECTED' || error?.message?.includes('rejected')) {
         toast.error('사용자가 트랜잭션을 거부했습니다.');
       } else {
         toast.error(`구매 실패: ${error.message || error.reason || '알 수 없는 오류'}`);
       }
       throw error;
     }
-  }, [account, getContentPurchaseContract]);
+  }, [account, getContentPurchaseContract, getProvider]);
 
   // 가격을 content_type으로 변환
   const getContentTypeFromPrice = useCallback((price: number): number => {
