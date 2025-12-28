@@ -53,17 +53,30 @@ sed -i.bak 's|COIN_NAME=|COIN_NAME=Ether|g' "$BLOCKSCOUT_DIR/envs/common-blocksc
 sed -i.bak 's|COIN=|COIN=ETH|g' "$BLOCKSCOUT_DIR/envs/common-blockscout.env"
 # Add WebSocket retry interval if not present
 if ! grep -q "^ETHEREUM_JSONRPC_WS_RETRY_INTERVAL=" "$BLOCKSCOUT_DIR/envs/common-blockscout.env"; then
-    sed -i.bak '/^ETHEREUM_JSONRPC_TRANSPORT=http/a ETHEREUM_JSONRPC_WS_RETRY_INTERVAL=5s' "$BLOCKSCOUT_DIR/envs/common-blockscout.env"
+    sed -i.bak '/^ETHEREUM_JSONRPC_TRANSPORT=http/a\
+ETHEREUM_JSONRPC_WS_RETRY_INTERVAL=5s' "$BLOCKSCOUT_DIR/envs/common-blockscout.env"
 fi
 # Enable realtime indexer
 sed -i.bak 's|# DISABLE_REALTIME_INDEXER=false|DISABLE_REALTIME_INDEXER=false|g' "$BLOCKSCOUT_DIR/envs/common-blockscout.env"
 # Configure realtime fetcher
 if ! grep -q "^INDEXER_REALTIME_FETCHER_POLLING_PERIOD=" "$BLOCKSCOUT_DIR/envs/common-blockscout.env"; then
-    sed -i.bak '/^# INDEXER_REALTIME_FETCHER_POLLING_PERIOD=/a INDEXER_REALTIME_FETCHER_MAX_GAP=50\nINDEXER_REALTIME_FETCHER_POLLING_PERIOD=1s' "$BLOCKSCOUT_DIR/envs/common-blockscout.env"
+    sed -i.bak '/^# INDEXER_REALTIME_FETCHER_POLLING_PERIOD=/a\
+INDEXER_REALTIME_FETCHER_MAX_GAP=50\
+INDEXER_REALTIME_FETCHER_POLLING_PERIOD=1s' "$BLOCKSCOUT_DIR/envs/common-blockscout.env"
 fi
 # Enable pending transactions fetcher
 sed -i.bak 's|# INDEXER_PENDING_TRANSACTIONS_SANITIZER_INTERVAL=|INDEXER_PENDING_TRANSACTIONS_SANITIZER_INTERVAL=60s|g' "$BLOCKSCOUT_DIR/envs/common-blockscout.env"
 sed -i.bak 's|# INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER=false|INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER=false|g' "$BLOCKSCOUT_DIR/envs/common-blockscout.env"
+# Enable internal transactions fetcher (required for daily transaction charts)
+sed -i.bak 's|# INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER=false|INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER=false|g' "$BLOCKSCOUT_DIR/envs/common-blockscout.env"
+# Configure internal transactions indexing for better performance
+if ! grep -q "^INDEXER_INTERNAL_TRANSACTIONS_BATCH_SIZE=" "$BLOCKSCOUT_DIR/envs/common-blockscout.env"; then
+    sed -i.bak '/^# INDEXER_INTERNAL_TRANSACTIONS_BATCH_SIZE=/a\
+INDEXER_INTERNAL_TRANSACTIONS_BATCH_SIZE=10\
+INDEXER_INTERNAL_TRANSACTIONS_CONCURRENCY=10' "$BLOCKSCOUT_DIR/envs/common-blockscout.env"
+fi
+# Enable transaction stats
+sed -i.bak 's|# TXS_STATS_ENABLED=false|TXS_STATS_ENABLED=true|g' "$BLOCKSCOUT_DIR/envs/common-blockscout.env"
 rm -f "$BLOCKSCOUT_DIR/envs/common-blockscout.env.bak"
 
 # Update common-frontend.env
@@ -76,12 +89,16 @@ rm -f "$BLOCKSCOUT_DIR/envs/common-frontend.env.bak"
 # Update common-stats.env
 echo "  - Updating common-stats.env..."
 sed -i.bak 's|STATS__BLOCKSCOUT_API_URL=.*|STATS__BLOCKSCOUT_API_URL=http://backend:4000|g' "$BLOCKSCOUT_DIR/envs/common-stats.env"
+sed -i.bak 's|STATS__CREATE_DATABASE=false|STATS__CREATE_DATABASE=true|g' "$BLOCKSCOUT_DIR/envs/common-stats.env"
+sed -i.bak 's|STATS__RUN_MIGRATIONS=false|STATS__RUN_MIGRATIONS=true|g' "$BLOCKSCOUT_DIR/envs/common-stats.env"
+sed -i.bak 's|STATS__FORCE_UPDATE_ON_START=false|STATS__FORCE_UPDATE_ON_START=true|g' "$BLOCKSCOUT_DIR/envs/common-stats.env"
 rm -f "$BLOCKSCOUT_DIR/envs/common-stats.env.bak"
 
 # Update services/stats.yml
 echo "  - Updating services/stats.yml..."
 if ! grep -q "STATS__BLOCKSCOUT_API_URL" "$BLOCKSCOUT_DIR/services/stats.yml"; then
-    sed -i.bak '/STATS__BLOCKSCOUT_DB_URL=/a\      - STATS__BLOCKSCOUT_API_URL=${STATS__BLOCKSCOUT_API_URL:-http://backend:4000}' "$BLOCKSCOUT_DIR/services/stats.yml"
+    sed -i.bak '/STATS__BLOCKSCOUT_DB_URL=/a\
+      - STATS__BLOCKSCOUT_API_URL=${STATS__BLOCKSCOUT_API_URL:-http://backend:4000}' "$BLOCKSCOUT_DIR/services/stats.yml"
 fi
 rm -f "$BLOCKSCOUT_DIR/services/stats.yml.bak"
 
@@ -119,7 +136,8 @@ echo -e "${GREEN}Applying nitro-devnode customizations...${NC}"
 NITRO_SCRIPT="nitro-devnode/run-dev-node.sh"
 
 # Add --http.vhosts="*" option to allow all hosts
-if ! grep -q '--http.vhosts' "$NITRO_SCRIPT"; then
+VHOSTS_PATTERN='--http.vhosts'
+if ! grep -Fq "$VHOSTS_PATTERN" "$NITRO_SCRIPT"; then
     echo "  - Adding --http.vhosts=\"*\" to run-dev-node.sh..."
     sed -i.bak 's|--http.addr 0.0.0.0 --http.api|--http.addr 0.0.0.0 --http.vhosts="*" --http.api|g' "$NITRO_SCRIPT"
     rm -f "$NITRO_SCRIPT.bak"
