@@ -9,12 +9,22 @@ NC='\033[0m' # No Color
 # 에러 발생 시 스크립트 중단
 set -e
 
-# PRIV_KEY 환경변수 확인
+# PRIV_KEY 환경변수 확인 및 Stylus/.env에서 읽기
 if [ -z "$PRIV_KEY" ]; then
-    echo -e "${RED}오류: PRIV_KEY 환경변수가 설정되지 않았습니다.${NC}"
-    echo "사용법: PRIV_KEY=your_private_key ./deploy-and-test.sh"
+    if [ -f "Stylus/.env" ]; then
+        echo -e "${YELLOW}Stylus/.env 파일에서 PRIV_KEY를 읽어옵니다...${NC}"
+        # .env 파일에서 PRIV_KEY 추출 (주석 제거, 빈 줄 제거)
+        PRIV_KEY=$(grep -E "^PRIV_KEY=" Stylus/.env | cut -d '=' -f2 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -n 1)
+    fi
+fi
+
+if [ -z "$PRIV_KEY" ]; then
+    echo -e "${RED}오류: PRIV_KEY를 찾을 수 없습니다.${NC}"
+    echo "Stylus/.env 파일에 PRIV_KEY를 설정하거나 환경변수로 제공해주세요."
     exit 1
 fi
+
+echo -e "${GREEN}PRIV_KEY를 찾았습니다.${NC}"
 
 echo -e "${GREEN}=== Stylus 배포 및 테스트 스크립트 시작 ===${NC}"
 
