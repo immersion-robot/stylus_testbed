@@ -6,6 +6,7 @@ import { useMetaMask } from '@/hooks/useMetaMask';
 import { ReservationDialog } from '@/components/ReservationDialog';
 import { PaymentDialog } from '@/components/PaymentDialog';
 import { ContentDetailDialog } from '@/components/ContentDetailDialog';
+import { RouteTrackingDialog } from '@/components/RouteTrackingDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -33,6 +34,8 @@ const Library = () => {
   const [detailMode, setDetailMode] = useState<'view' | 'edit'>('view');
   const [pendingReservation, setPendingReservation] = useState<Omit<Reservation, 'id'> | null>(null);
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+  const [showRouteDialog, setShowRouteDialog] = useState(false);
+  const [completedReservation, setCompletedReservation] = useState<Reservation | null>(null);
 
   // Generate thumbnails for videos
   useEffect(() => {
@@ -151,6 +154,12 @@ const Library = () => {
       };
       addReservation(newReservation);
       toast.success('Reservation confirmed! Your content will be broadcast soon.');
+      
+      // 결제 완료 후 checkpoint 보여주기
+      setCompletedReservation(newReservation);
+      setTimeout(() => {
+        setShowRouteDialog(true);
+      }, 500);
     }
     setPendingReservation(null);
     setSelectedContent(null);
@@ -407,6 +416,20 @@ const Library = () => {
             />
           )}
         </>
+      )}
+
+      {/* Route Tracking Dialog - 결제 완료 후 checkpoint 표시 */}
+      {completedReservation && (
+        <RouteTrackingDialog
+          open={showRouteDialog}
+          onOpenChange={(open) => {
+            setShowRouteDialog(open);
+            if (!open) {
+              setCompletedReservation(null);
+            }
+          }}
+          reservation={completedReservation}
+        />
       )}
     </div>
   );

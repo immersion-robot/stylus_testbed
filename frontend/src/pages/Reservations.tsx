@@ -1,15 +1,20 @@
+import { useState } from 'react';
 import { Header } from '@/components/Header';
 import { useContent } from '@/contexts/ContentContext';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
   Calendar, Clock, MapPin, CheckCircle, 
-  ExternalLink, Copy, Mail 
+  ExternalLink, Copy, Mail, Navigation 
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { RouteTrackingDialog } from '@/components/RouteTrackingDialog';
+import { Reservation } from '@/types/content';
 
 const Reservations = () => {
   const { reservations } = useContent();
+  const [routeDialogOpen, setRouteDialogOpen] = useState(false);
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
 
   const completedReservations = reservations.filter(r => r.status === 'completed');
 
@@ -18,7 +23,12 @@ const Reservations = () => {
     toast.success('Transaction hash copied!');
   };
 
-  const ReservationCard = ({ reservation }: { reservation: typeof reservations[0] }) => {
+  const handleViewRoute = (reservation: Reservation) => {
+    setSelectedReservation(reservation);
+    setRouteDialogOpen(true);
+  };
+
+  const ReservationCard = ({ reservation }: { reservation: Reservation }) => {
     return (
       <div className="glass-card p-6 hover:border-primary/30 transition-all duration-300">
         <div className="flex items-start justify-between mb-4">
@@ -80,6 +90,19 @@ const Reservations = () => {
             </div>
           </div>
         )}
+
+        {/* Action Buttons */}
+        <div className="mt-4 pt-4 border-t border-border">
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="w-full"
+            onClick={() => handleViewRoute(reservation)}
+          >
+            <Navigation className="w-4 h-4 mr-2" />
+            View Route
+          </Button>
+        </div>
       </div>
     );
   };
@@ -119,6 +142,13 @@ const Reservations = () => {
           )}
         </div>
       </main>
+
+      {/* Route Tracking Dialog */}
+      <RouteTrackingDialog
+        open={routeDialogOpen}
+        onOpenChange={setRouteDialogOpen}
+        reservation={selectedReservation}
+      />
     </div>
   );
 };
