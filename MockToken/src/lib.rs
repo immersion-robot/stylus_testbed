@@ -5,7 +5,7 @@ use stylus_sdk::{
     alloy_primitives::{Address, U256},
     alloy_sol_types::{sol, SolError},
     prelude::*,
-    storage::{StorageAddress, StorageMap, StorageU256},
+    storage::{StorageMap, StorageU256},
     stylus_core::log,
 };
 
@@ -30,8 +30,6 @@ sol! {
 #[storage]
 #[entrypoint]
 pub struct MockERC20 {
-    name: StorageAddress, // 임시로 Address 사용 (실제로는 string이지만 간단하게)
-    symbol: StorageAddress, // 임시로 Address 사용
     decimals: StorageU256,
     total_supply: StorageU256,
     balances: StorageMap<Address, StorageU256>,
@@ -59,12 +57,14 @@ impl MockERC20 {
         Ok(())
     }
 
-    pub fn name(&self) -> Address {
-        self.name.get()
+    pub fn name(&self) -> Vec<u8> {
+        // "Tether USD"를 bytes로 반환
+        b"Tether USD".to_vec()
     }
 
-    pub fn symbol(&self) -> Address {
-        self.symbol.get()
+    pub fn symbol(&self) -> Vec<u8> {
+        // "USDT"를 bytes로 반환
+        b"USDT".to_vec()
     }
 
     pub fn decimals(&self) -> U256 {
