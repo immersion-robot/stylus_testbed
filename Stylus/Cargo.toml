@@ -36,6 +36,22 @@ path = "src/main.rs"
 name = "test_client"
 path = "examples/test_client.rs"
 
+[[example]]
+name = "set_waypoint_b"
+path = "examples/set_waypoint_b.rs"
+
+[[example]]
+name = "set_waypoint_c"
+path = "examples/set_waypoint_c.rs"
+
+[[example]]
+name = "set_waypoint_d"
+path = "examples/set_waypoint_d.rs"
+
+[[example]]
+name = "set_waypoint_e"
+path = "examples/set_waypoint_e.rs"
+
 [lib]
 crate-type = ["lib", "cdylib"]
 

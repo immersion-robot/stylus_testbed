@@ -54,6 +54,10 @@ async fn main() -> eyre::Result<()> {
             function setContentPrice(uint64 contentType, uint256 price) external
             function balance() external view returns (uint256)
             function withdraw() external
+            function getOwnerTokenCount(address owner) external view returns (uint256)
+            function getOwnerTokenAtIndex(address owner, uint256 index) external view returns (uint256)
+            function getWaypoint(uint256 tokenId) external view returns (uint256)
+            function setWaypoint(uint256 tokenId, uint64 waypoint) external
         ]"#
     );
 

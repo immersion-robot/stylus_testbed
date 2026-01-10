@@ -16,6 +16,7 @@ sol! {
     error Unauthorized();
     error TransferFailed();
     error AlreadyInitialized();
+    error InvalidWaypoint();
 
     event PurchaseEvent(
         address indexed buyer,
@@ -43,6 +44,10 @@ pub struct ContentPurchaseContract {
     next_token_id: StorageU256,
     permissions: StorageMap<Address, StorageMap<u64, StorageBool>>,
     locked: StorageBool,
+    waypoints: StorageMap<U256, StorageU256>, // token_id -> waypoint (1=A, 2=B, 3=C, 4=D, 5=E)
+    token_owners: StorageMap<U256, StorageAddress>, // token_id -> owner address (검증용)
+    owner_token_count: StorageMap<Address, StorageU256>, // owner -> token 개수
+    owner_tokens: StorageMap<Address, StorageMap<U256, StorageU256>>, // owner -> (index -> token_id)
 }
 
 #[public]
@@ -126,9 +131,18 @@ impl ContentPurchaseContract {
         }
 
         // 3. 상태 업데이트 및 권한 부여
-        let token_id = self.next_token_id.get();
-        self.next_token_id.set(token_id + U256::from(1));
+        let token_id = self.next_token_id.get(); // 현재 할당할 token_id 가져오기
+        self.next_token_id.set(token_id + U256::from(1)); // 다음 구매를 위해 증가
         self.permissions.setter(buyer).setter(content_type).set(true);
+        
+        // 4. Waypoint 초기화 (A = 1) 및 token owner 기록
+        self.waypoints.setter(token_id).set(U256::from(1)); // A = 1로 초기화
+        self.token_owners.setter(token_id).set(buyer); // token_id의 owner 기록
+        
+        // 5. Owner의 token 목록에 추가 (인덱스는 증가 전 값을 사용)
+        let token_count = self.owner_token_count.get(buyer); // 현재 owner가 가진 token 개수
+        self.owner_token_count.setter(buyer).set(token_count + U256::from(1)); // 개수 증가
+        self.owner_tokens.setter(buyer).setter(token_count).set(token_id); // 인덱스 token_count 위치에 token_id 저장
 
         // 이벤트 로그
         log(self.vm(), PurchaseEvent {
@@ -241,6 +255,51 @@ impl ContentPurchaseContract {
 
     pub fn balance(&self) -> U256 {
         self.vm().balance(self.vm().contract_address())
+    }
+
+    /// Waypoint 설정 (only_owner)
+    /// token_id: 구매한 토큰 ID
+    /// waypoint: 1=A, 2=B, 3=C, 4=D, 5=E
+    pub fn set_waypoint(&mut self, token_id: U256, waypoint: u64) -> Result<(), Vec<u8>> {
+        self.only_owner()?;
+        if waypoint < 1 || waypoint > 5 {
+            return Err(InvalidWaypoint {}.abi_encode());
+        }
+        // token_id가 유효한지 확인 (owner가 있는지)
+        if self.token_owners.get(token_id).is_zero() {
+            return Err(InvalidWaypoint {}.abi_encode());
+        }
+        self.waypoints.setter(token_id).set(U256::from(waypoint));
+        Ok(())
+    }
+
+    /// Token ID에 대한 Waypoint 조회
+    /// token_id: 조회할 토큰 ID
+    /// 반환값: 0=설정되지 않음, 1=A, 2=B, 3=C, 4=D, 5=E
+    pub fn get_waypoint(&self, token_id: U256) -> U256 {
+        self.waypoints.get(token_id)
+    }
+
+    /// Token ID의 Owner 조회
+    /// token_id: 조회할 토큰 ID
+    /// 반환값: token_id의 owner address (없으면 zero address)
+    pub fn get_token_owner(&self, token_id: U256) -> Address {
+        self.token_owners.get(token_id)
+    }
+
+    /// Owner가 가진 Token 개수 조회
+    /// owner: 조회할 owner address
+    /// 반환값: owner가 가진 token 개수
+    pub fn get_owner_token_count(&self, owner: Address) -> U256 {
+        self.owner_token_count.get(owner)
+    }
+
+    /// Owner의 특정 인덱스 Token ID 조회
+    /// owner: 조회할 owner address
+    /// index: token 인덱스 (0부터 시작)
+    /// 반환값: 해당 인덱스의 token_id (없으면 0)
+    pub fn get_owner_token_at_index(&self, owner: Address, index: U256) -> U256 {
+        self.owner_tokens.getter(owner).get(index)
     }
 }
 
