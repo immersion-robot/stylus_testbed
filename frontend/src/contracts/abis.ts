@@ -57,6 +57,49 @@ export const CONTENT_PURCHASE_ABI = [
     stateMutability: 'nonpayable',
     type: 'function',
   },
+  {
+    inputs: [{ internalType: 'address', name: 'owner', type: 'address' }],
+    name: 'getOwnerTokenCount',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'owner', type: 'address' },
+      { internalType: 'uint256', name: 'index', type: 'uint256' },
+    ],
+    name: 'getOwnerTokenAtIndex',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: 'tokenId', type: 'uint256' }],
+    name: 'getWaypoint',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: 'tokenId', type: 'uint256' }],
+    name: 'getTokenOwner',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'buyer', type: 'address' },
+      { indexed: true, internalType: 'uint256', name: 'contentType', type: 'uint256' },
+      { indexed: false, internalType: 'uint256', name: 'purchaseTime', type: 'uint256' },
+      { indexed: false, internalType: 'uint256', name: 'amount', type: 'uint256' },
+      { indexed: false, internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+    ],
+    name: 'PurchaseEvent',
+    type: 'event',
+  },
 ] as const;
 
 // ERC20 ABI (USDT)

@@ -14,44 +14,46 @@ interface RouteTrackingDialogProps {
     location: string;
     date: string;
     time: string;
+    tokenId?: string;
+    waypoint?: number; // 1=A, 2=B, 3=C, 4=D, 5=E
   } | null;
 }
 
 const LOCATION_ROUTES: Record<string, Array<{ id: string; name: string; location: string }>> = {
   'Gangnam, Seoul': [
-    { id: 'A', name: 'Start Point', location: '강남역 10번 출구' },
-    { id: 'B', name: 'Spot B', location: '강남 CGV 앞' },
-    { id: 'C', name: 'Spot C', location: '강남역 사거리' },
-    { id: 'D', name: 'Spot D', location: '신논현역 앞' },
-    { id: 'E', name: 'End Point', location: '강남 교보타워' },
+    { id: 'A', name: 'Start Point', location: 'Gangnam Stn. Exit 10' },
+    { id: 'B', name: 'Spot B', location: 'Gangnam CGV' },
+    { id: 'C', name: 'Spot C', location: 'Gangnam Intersection' },
+    { id: 'D', name: 'Spot D', location: 'Sinnonhyeon Stn.' },
+    { id: 'E', name: 'End Point', location: 'Kyobo Tower' },
   ],
   'Samsung, Seoul': [
-    { id: 'A', name: 'Start Point', location: '삼성역 5번 출구' },
-    { id: 'B', name: 'Spot B', location: '코엑스 동문' },
-    { id: 'C', name: 'Spot C', location: '스타필드 코엑스몰' },
-    { id: 'D', name: 'Spot D', location: '코엑스 아쿠아리움' },
-    { id: 'E', name: 'End Point', location: '현대백화점 무역센터점' },
+    { id: 'A', name: 'Start Point', location: 'Samsung Stn. Exit 5' },
+    { id: 'B', name: 'Spot B', location: 'COEX East Gate' },
+    { id: 'C', name: 'Spot C', location: 'Starfield COEX' },
+    { id: 'D', name: 'Spot D', location: 'COEX Aquarium' },
+    { id: 'E', name: 'End Point', location: 'Hyundai Trade Center' },
   ],
   'Myeongdong, Seoul': [
-    { id: 'A', name: 'Start Point', location: '명동역 8번 출구' },
-    { id: 'B', name: 'Spot B', location: '명동 중앙거리' },
-    { id: 'C', name: 'Spot C', location: '명동 롯데백화점' },
-    { id: 'D', name: 'Spot D', location: '명동예술극장' },
-    { id: 'E', name: 'End Point', location: '명동성당 입구' },
+    { id: 'A', name: 'Start Point', location: 'Myeongdong Stn. Exit 8' },
+    { id: 'B', name: 'Spot B', location: 'Central Street' },
+    { id: 'C', name: 'Spot C', location: 'Lotte Dept. Store' },
+    { id: 'D', name: 'Spot D', location: 'Art Theater' },
+    { id: 'E', name: 'End Point', location: 'Cathedral' },
   ],
   'Hongdae, Seoul': [
-    { id: 'A', name: 'Start Point', location: '홍대입구역 9번 출구' },
-    { id: 'B', name: 'Spot B', location: '홍대 걷고싶은거리' },
-    { id: 'C', name: 'Spot C', location: '홍대 놀이터 공원' },
-    { id: 'D', name: 'Spot D', location: '홍대 AK&홍대' },
-    { id: 'E', name: 'End Point', location: '연남동 연트럴파크' },
+    { id: 'A', name: 'Start Point', location: 'Hongik Stn. Exit 9' },
+    { id: 'B', name: 'Spot B', location: 'Pedestrian Street' },
+    { id: 'C', name: 'Spot C', location: 'Playground Park' },
+    { id: 'D', name: 'Spot D', location: 'AK Plaza' },
+    { id: 'E', name: 'End Point', location: 'Yeonnam Park' },
   ],
   'Itaewon, Seoul': [
-    { id: 'A', name: 'Start Point', location: '이태원역 3번 출구' },
-    { id: 'B', name: 'Spot B', location: '이태원 앤틱가구거리' },
-    { id: 'C', name: 'Spot C', location: '경리단길 입구' },
-    { id: 'D', name: 'Spot D', location: '이태원 해밀턴호텔' },
-    { id: 'E', name: 'End Point', location: '이태원 세계음식거리' },
+    { id: 'A', name: 'Start Point', location: 'Itaewon Stn. Exit 3' },
+    { id: 'B', name: 'Spot B', location: 'Antique Street' },
+    { id: 'C', name: 'Spot C', location: 'Gyeongridan-gil' },
+    { id: 'D', name: 'Spot D', location: 'Hamilton Hotel' },
+    { id: 'E', name: 'End Point', location: 'Food Street' },
   ],
 };
 
@@ -71,6 +73,15 @@ export function RouteTrackingDialog({
     { id: 'E', name: 'End Point', location: 'Final Destination' },
   ];
   const spots = LOCATION_ROUTES[reservation.location] || defaultRoute;
+  
+  // 현재 waypoint (1=A, 2=B, 3=C, 4=D, 5=E), 기본값은 1 (A)
+  const currentWaypoint = reservation.waypoint || 1;
+  
+  // Waypoint를 인덱스로 변환 (1=A=0, 2=B=1, 3=C=2, 4=D=3, 5=E=4)
+  const currentWaypointIndex = currentWaypoint - 1;
+  
+  // 진행률 계산 (현재 waypoint / 전체 waypoint 수)
+  const progressPercentage = ((currentWaypointIndex + 1) / spots.length) * 100;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -101,47 +112,58 @@ export function RouteTrackingDialog({
             </div>
 
             {/* Route Steps */}
-            <div className="flex items-center justify-between relative px-2">
+            <div className="flex items-start relative px-2">
               {/* Connecting Line */}
               <div className="absolute top-6 left-8 right-8 h-0.5 bg-border z-0">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary to-primary/30" 
-                     style={{ width: '100%' }} />
+                <div 
+                  className="absolute inset-0 bg-gradient-to-r from-primary via-primary to-primary/30 transition-all duration-500" 
+                  style={{ width: `${progressPercentage}%` }} 
+                />
               </div>
 
-              {spots.map((spot, index) => (
-                <div key={spot.id} className="flex flex-col items-center z-10">
-                  <div className={`
-                    w-12 h-12 rounded-xl flex items-center justify-center mb-2 transition-all
-                    ${index === 0 
-                      ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/30' 
-                      : 'bg-secondary border border-border'
-                    }
-                  `}>
-                    {index === 0 ? (
-                      <CheckCircle className="w-6 h-6" />
-                    ) : (
-                      <MapPin className="w-5 h-5 text-muted-foreground" />
-                    )}
+              {spots.map((spot, index) => {
+                // 현재 waypoint 이하인 경우 완료된 것으로 표시
+                const isCompleted = index <= currentWaypointIndex;
+                const isCurrent = index === currentWaypointIndex;
+                
+                return (
+                  <div key={spot.id} className="flex-1 flex flex-col items-center z-10">
+                    <div className={`
+                      w-12 h-12 rounded-xl flex items-center justify-center mb-2 transition-all flex-shrink-0
+                      ${isCompleted
+                        ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/30' 
+                        : 'bg-secondary border border-border'
+                      }
+                      ${isCurrent ? 'ring-2 ring-primary ring-offset-2' : ''}
+                    `}>
+                      {isCompleted ? (
+                        <CheckCircle className="w-6 h-6 flex-shrink-0" />
+                      ) : (
+                        <MapPin className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                      )}
+                    </div>
+                    <div className="text-center w-full">
+                      <span className="text-xs font-medium block">
+                        Spot {spot.id}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground block max-w-[60px] mx-auto leading-tight mt-1">
+                        {spot.location}
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-xs font-medium text-center">
-                    Spot {spot.id}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground text-center max-w-[60px] leading-tight mt-1">
-                    {spot.location}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Legend */}
             <div className="mt-8 flex items-center justify-center gap-6 text-xs text-muted-foreground">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded bg-primary" />
-                <span>Start</span>
+                <span>Completed</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded bg-secondary border border-border" />
-                <span>Waypoint</span>
+                <span>Pending</span>
               </div>
             </div>
           </div>

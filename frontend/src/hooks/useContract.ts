@@ -246,6 +246,95 @@ export function useContract() {
     return CONTENT_TYPE_PRICE[contentType] || CONTENT_TYPE_PRICE[1];
   }, []);
 
+  // Owner가 가진 Token 개수 조회
+  const getOwnerTokenCount = useCallback(async (ownerAddress: string): Promise<number> => {
+    try {
+      const provider = getProvider();
+      const contract = new ethers.Contract(
+        CONTRACT_CONFIG.STYLUS_CONTRACT_ADDRESS,
+        CONTENT_PURCHASE_ABI,
+        provider
+      );
+      const count = await contract.getOwnerTokenCount(ownerAddress);
+      return Number(count.toString());
+    } catch (error) {
+      console.error('getOwnerTokenCount 실패:', error);
+      throw error;
+    }
+  }, [getProvider]);
+
+  // Owner의 특정 인덱스 Token ID 조회
+  const getOwnerTokenAtIndex = useCallback(async (ownerAddress: string, index: number): Promise<string> => {
+    try {
+      const provider = getProvider();
+      const contract = new ethers.Contract(
+        CONTRACT_CONFIG.STYLUS_CONTRACT_ADDRESS,
+        CONTENT_PURCHASE_ABI,
+        provider
+      );
+      const tokenId = await contract.getOwnerTokenAtIndex(ownerAddress, index);
+      return tokenId.toString();
+    } catch (error) {
+      console.error('getOwnerTokenAtIndex 실패:', error);
+      throw error;
+    }
+  }, [getProvider]);
+
+  // Token ID의 Waypoint 조회
+  const getWaypoint = useCallback(async (tokenId: string): Promise<number> => {
+    try {
+      const provider = getProvider();
+      const contract = new ethers.Contract(
+        CONTRACT_CONFIG.STYLUS_CONTRACT_ADDRESS,
+        CONTENT_PURCHASE_ABI,
+        provider
+      );
+      const waypoint = await contract.getWaypoint(tokenId);
+      const waypointNum = Number(waypoint.toString());
+      return waypointNum > 0 ? waypointNum : 0; // 0이면 설정되지 않음
+    } catch (error) {
+      console.error('getWaypoint 실패:', error);
+      return 0;
+    }
+  }, [getProvider]);
+
+  // PurchaseEvent 이벤트 조회
+  const getPurchaseEvents = useCallback(async (buyerAddress: string, fromBlock: number = 0): Promise<Array<{
+    buyer: string;
+    contentType: number;
+    purchaseTime: number;
+    amount: string;
+    tokenId: string;
+    transactionHash: string;
+    blockNumber: number;
+  }>> => {
+    try {
+      const provider = getProvider();
+      const contract = new ethers.Contract(
+        CONTRACT_CONFIG.STYLUS_CONTRACT_ADDRESS,
+        CONTENT_PURCHASE_ABI,
+        provider
+      );
+      
+      // PurchaseEvent 필터 (buyer가 indexed이므로 필터링 가능)
+      const filter = contract.filters.PurchaseEvent(buyerAddress);
+      const events = await contract.queryFilter(filter, fromBlock);
+      
+      return events.map(event => ({
+        buyer: event.args?.buyer || '',
+        contentType: Number(event.args?.contentType?.toString() || '0'),
+        purchaseTime: Number(event.args?.purchaseTime?.toString() || '0'),
+        amount: event.args?.amount?.toString() || '0',
+        tokenId: event.args?.tokenId?.toString() || '0',
+        transactionHash: event.transactionHash,
+        blockNumber: event.blockNumber,
+      }));
+    } catch (error) {
+      console.error('getPurchaseEvents 실패:', error);
+      return [];
+    }
+  }, [getProvider]);
+
   // 전체 구매 프로세스: approve + purchase
   const purchaseWithApprove = useCallback(async (price: number) => {
     console.log('purchaseWithApprove called with price:', price);
@@ -309,6 +398,10 @@ export function useContract() {
     purchaseWithApprove,
     getContentTypeFromPrice,
     getPriceFromContentType,
+    getOwnerTokenCount,
+    getOwnerTokenAtIndex,
+    getWaypoint,
+    getPurchaseEvents,
   };
 }
 
