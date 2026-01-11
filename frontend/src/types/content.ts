@@ -10,9 +10,9 @@ export interface Reservation {
   amount: number;
   transactionHash?: string;
   customerEmail?: string;
-  tokenId?: string; // 컨트랙트에서 받은 token ID
-  contentType?: number; // 컨트랙트의 content type (1, 2, 3)
-  waypoint?: number; // 현재 waypoint (1=A, 2=B, 3=C, 4=D, 5=E)
+  tokenId?: string; // Token ID received from contract
+  contentType?: number; // Content type from contract (1, 2, 3)
+  waypoint?: number; // Current waypoint (1=A, 2=B, 3=C, 4=D, 5=E)
 }
 
 export interface ContentItem {

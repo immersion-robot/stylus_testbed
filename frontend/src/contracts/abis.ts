@@ -1,4 +1,4 @@
-// 컨트랙트 ABI 정의
+// Contract ABI definitions
 
 // ContentPurchaseContract ABI
 export const CONTENT_PURCHASE_ABI = [

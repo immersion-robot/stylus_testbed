@@ -24,7 +24,7 @@ const Reservations = () => {
   const [isLoading, setIsLoading] = useState(false);
   const reservationsRef = useRef<Reservation[]>([]);
 
-  // localStorage에서 메타데이터 복원
+  // Restore metadata from localStorage
   const getStoredReservations = (): Reservation[] => {
     try {
       const stored = localStorage.getItem(`reservations_${account}`);
@@ -34,7 +34,7 @@ const Reservations = () => {
     }
   };
 
-  // localStorage에 메타데이터 저장
+  // Save metadata to localStorage
   const saveReservationsToStorage = (reservationsData: Reservation[]) => {
     if (!account) return;
     try {
@@ -44,7 +44,7 @@ const Reservations = () => {
     }
   };
 
-  // 컨트랙트에서 구매 내역 조회 (초기 로드 및 reservations/contents 변경 시)
+  // Fetch purchase history from contract (on initial load and when reservations/contents change)
   useEffect(() => {
     const fetchPurchases = async () => {
       if (!isConnected || !account) {
@@ -57,55 +57,55 @@ const Reservations = () => {
       try {
         const events = await getPurchaseEvents(account);
         
-        // PurchaseEvent를 Reservation 형태로 변환
+        // Convert PurchaseEvent to Reservation format
         const contractReservationsData: Reservation[] = await Promise.all(
           events.map(async (event) => {
-            // 가격 계산 (6자리 소수점)
+            // Calculate price (6 decimal places)
             const priceInWei = BigInt(event.amount);
-            const priceInUSDT = Number(priceInWei) / 1_000_000; // 6자리 소수점
+            const priceInUSDT = Number(priceInWei) / 1_000_000; // 6 decimal places
             
-            // contentType에 따른 가격 매핑
+            // Map price based on contentType
             const contentType = event.contentType;
             const amount = priceInUSDT;
             
-            // Waypoint 조회
+            // Get waypoint
             const waypoint = await getWaypoint(event.tokenId);
             
-            // 기본 location (contentType에 따라 매핑하거나 기본값 사용)
+            // Default location (map by contentType or use default)
             const locationMap: Record<number, string> = {
               1: 'Gangnam, Seoul',
               2: 'Samsung, Seoul',
               3: 'Myeongdong, Seoul',
             };
             
-            // localStorage에서 저장된 메타데이터 복원
+            // Restore stored metadata from localStorage
             const storedReservations = getStoredReservations();
             const storedReservation = storedReservations.find(
               r => r.tokenId === event.tokenId || r.transactionHash?.toLowerCase() === event.transactionHash.toLowerCase()
             );
             
-            // 기존 예약 데이터에서 동일한 tokenId나 transactionHash로 매칭 (메타데이터 보존)
+            // Match by same tokenId or transactionHash from existing reservation data (preserve metadata)
             const existingReservation = reservationsRef.current.find(
               r => r.tokenId === event.tokenId || r.transactionHash?.toLowerCase() === event.transactionHash.toLowerCase()
             ) || storedReservation;
             
-            // ContentContext의 reservations에서 transactionHash로 매칭하여 선택한 날짜/시간 가져오기
+            // Match by transactionHash from ContentContext reservations to get selected date/time
             const matchedReservation = reservations.find(
               r => r.transactionHash?.toLowerCase() === event.transactionHash.toLowerCase()
             );
             
-            // ContentContext의 contents에서 contentId로 매칭하여 실제 콘텐츠 제목 가져오기
+            // Match by contentId from ContentContext contents to get actual content title
             const contentId = existingReservation?.contentId || matchedReservation?.contentId || `content-${event.tokenId}`;
             const matchedContent = contents.find(c => c.id === contentId);
             
-            // 우선순위: 기존/저장된 데이터(메타데이터 보존) > matchedContent > matchedReservation > 기본값
+            // Priority: existing/stored data (preserve metadata) > matchedContent > matchedReservation > default
             const contentTitle = existingReservation?.contentTitle || 
               matchedContent?.title || 
               matchedReservation?.contentTitle || 
               `Content Purchase #${event.tokenId}`;
             
-            // 매칭된 예약이 있으면 선택한 날짜/시간 사용, 없으면 구매 시간 사용
-            // 기존/저장된 데이터가 있으면 그 데이터를 우선 사용 (메타데이터 보존)
+            // Use selected date/time if matched reservation exists, otherwise use purchase time
+            // Use existing/stored data first if available (preserve metadata)
             const date = existingReservation?.date || matchedReservation?.date || (() => {
               const purchaseDate = new Date(Number(event.purchaseTime) * 1000);
               return purchaseDate.toISOString().split('T')[0];
@@ -128,13 +128,13 @@ const Reservations = () => {
               transactionHash: event.transactionHash,
               tokenId: event.tokenId,
               contentType,
-              waypoint: existingReservation?.waypoint || (waypoint > 0 ? waypoint : 1), // 기존 waypoint 보존, 없으면 새로 조회한 값 사용
+              waypoint: existingReservation?.waypoint || (waypoint > 0 ? waypoint : 1), // Preserve existing waypoint, use newly fetched value if not available
               customerEmail: existingReservation?.customerEmail || matchedReservation?.customerEmail,
             };
           })
         );
         
-        // 최신순으로 정렬 (tokenId 내림차순)
+        // Sort by latest first (tokenId descending)
         contractReservationsData.sort((a, b) => {
           const tokenIdA = BigInt(a.tokenId || '0');
           const tokenIdB = BigInt(b.tokenId || '0');
@@ -144,23 +144,23 @@ const Reservations = () => {
         setContractReservations(contractReservationsData);
         reservationsRef.current = contractReservationsData;
         
-        // localStorage에 메타데이터 저장 (waypoint 제외하고 메타데이터만 저장)
+        // Save metadata to localStorage (save only metadata, exclude waypoint)
         const metadataToStore = contractReservationsData.map(({ waypoint, ...rest }) => rest);
         saveReservationsToStorage(metadataToStore);
       } catch (error) {
-        console.error('구매 내역 조회 실패:', error);
-        toast.error('구매 내역을 불러오는데 실패했습니다.');
+        console.error('Failed to fetch purchase history:', error);
+        toast.error('Failed to load purchase history.');
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchPurchases();
-    // reservations와 contents는 초기 로드 시 메타데이터를 가져오기 위해 필요
+    // reservations and contents are needed to get metadata on initial load
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, account, getPurchaseEvents, getWaypoint, reservations, contents]);
 
-  // Waypoint만 업데이트하는 별도 useEffect (기존 데이터는 유지)
+  // Separate useEffect to update only waypoint (preserve existing data)
   useEffect(() => {
     if (!isConnected || !account) {
       return;
@@ -172,8 +172,8 @@ const Reservations = () => {
       if (!isMounted) return;
       
       try {
-        // 현재 상태를 기반으로 waypoint만 업데이트
-        // 함수형 업데이트를 사용하여 항상 최신 상태를 가져옴
+        // Update only waypoint based on current state
+        // Use functional update to always get latest state
         const currentReservations = reservationsRef.current;
         if (currentReservations.length === 0) return;
 
@@ -182,7 +182,7 @@ const Reservations = () => {
             if (!reservation.tokenId) return reservation;
             
             const waypoint = await getWaypoint(reservation.tokenId);
-            // 기존 데이터를 모두 유지하면서 waypoint만 업데이트
+            // Preserve all existing data and update only waypoint
             return {
               ...reservation,
               waypoint: waypoint > 0 ? waypoint : 1,
@@ -190,21 +190,21 @@ const Reservations = () => {
           })
         );
 
-        // 컴포넌트가 마운트되어 있을 때만 업데이트
+        // Update only when component is mounted
         if (isMounted) {
           setContractReservations(updatedReservations);
           reservationsRef.current = updatedReservations;
           
-          // localStorage에 메타데이터 저장 (waypoint 제외하고 메타데이터만 저장)
+          // Save metadata to localStorage (save only metadata, exclude waypoint)
           const metadataToStore = updatedReservations.map(({ waypoint, ...rest }) => rest);
           saveReservationsToStorage(metadataToStore);
         }
       } catch (error) {
-        console.error('Waypoint 업데이트 실패:', error);
+        console.error('Failed to update waypoint:', error);
       }
     };
 
-    // 주기적으로 waypoint 업데이트 (5초마다)
+    // Periodically update waypoint (every 5 seconds)
     const interval = setInterval(updateWaypoints, 5000);
 
     return () => {
@@ -213,7 +213,7 @@ const Reservations = () => {
     };
   }, [isConnected, account, getWaypoint]);
 
-  // 컨트랙트에서 가져온 예약 정보 사용 (이미 매칭 완료됨)
+  // Use reservation info from contract (already matched)
   const completedReservations = contractReservations.filter(r => r.status === 'completed');
 
   const copyTxHash = (hash: string) => {

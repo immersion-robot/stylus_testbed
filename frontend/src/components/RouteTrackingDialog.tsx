@@ -74,13 +74,13 @@ export function RouteTrackingDialog({
   ];
   const spots = LOCATION_ROUTES[reservation.location] || defaultRoute;
   
-  // 현재 waypoint (1=A, 2=B, 3=C, 4=D, 5=E), 기본값은 1 (A)
+  // Current waypoint (1=A, 2=B, 3=C, 4=D, 5=E), default is 1 (A)
   const currentWaypoint = reservation.waypoint || 1;
   
-  // Waypoint를 인덱스로 변환 (1=A=0, 2=B=1, 3=C=2, 4=D=3, 5=E=4)
+  // Convert waypoint to index (1=A=0, 2=B=1, 3=C=2, 4=D=3, 5=E=4)
   const currentWaypointIndex = currentWaypoint - 1;
   
-  // 진행률 계산 (현재 waypoint / 전체 waypoint 수)
+  // Calculate progress (current waypoint / total waypoint count)
   const progressPercentage = ((currentWaypointIndex + 1) / spots.length) * 100;
 
   return (
@@ -122,7 +122,7 @@ export function RouteTrackingDialog({
               </div>
 
               {spots.map((spot, index) => {
-                // 현재 waypoint 이하인 경우 완료된 것으로 표시
+                // Mark as completed if index is less than or equal to current waypoint
                 const isCompleted = index <= currentWaypointIndex;
                 const isCurrent = index === currentWaypointIndex;
                 

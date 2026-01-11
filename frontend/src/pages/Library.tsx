@@ -155,7 +155,7 @@ const Library = () => {
       addReservation(newReservation);
       toast.success('Reservation confirmed! Your content will be broadcast soon.');
       
-      // 결제 완료 후 checkpoint 보여주기
+      // Show checkpoint after payment completion
       setCompletedReservation(newReservation);
       setTimeout(() => {
         setShowRouteDialog(true);
@@ -418,7 +418,7 @@ const Library = () => {
         </>
       )}
 
-      {/* Route Tracking Dialog - 결제 완료 후 checkpoint 표시 */}
+      {/* Route Tracking Dialog - Show checkpoint after payment completion */}
       {completedReservation && (
         <RouteTrackingDialog
           open={showRouteDialog}

@@ -22,7 +22,7 @@ export function PaymentDialog({ open, onOpenChange, reservation, onConfirm }: Pa
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [processingStep, setProcessingStep] = useState<string>('');
   const { approveUSDT, purchaseContent, checkAllowance, getContentTypeFromPrice, getPriceFromContentType } = useContract();
-  const { isConnected, account } = useMetaMask();
+  const { isConnected, account, accessToken } = useMetaMask();
 
   const checkApprovalStatus = async () => {
     if (!isConnected || !account) {
@@ -32,17 +32,17 @@ export function PaymentDialog({ open, onOpenChange, reservation, onConfirm }: Pa
     
     try {
       const contentType = getContentTypeFromPrice(reservation.amount);
-      const priceAmount = getPriceFromContentType(contentType);
-      const currentAllowance = await checkAllowance(priceAmount);
-      const requiredAmount = BigInt(priceAmount);
-      setIsApproved(BigInt(currentAllowance) >= requiredAmount);
+      const requiredAmount = getPriceFromContentType(contentType);
+      const currentAllowance = await checkAllowance(requiredAmount);
+      const isApprovedValue = BigInt(currentAllowance) >= BigInt(requiredAmount);
+      setIsApproved(isApprovedValue);
     } catch (error) {
-      console.error('Allowance 확인 실패:', error);
+      console.error('Failed to check allowance:', error);
       setIsApproved(false);
     }
   };
 
-  // 다이얼로그가 열릴 때마다 allowance 확인
+  // Check allowance whenever dialog opens
   useEffect(() => {
     if (open && isConnected && account) {
       checkApprovalStatus();
@@ -54,12 +54,12 @@ export function PaymentDialog({ open, onOpenChange, reservation, onConfirm }: Pa
 
   const handleApprove = async () => {
     if (!isConnected || !account) {
-      toast.error('지갑을 먼저 연결해주세요.');
+      toast.error('Please connect your wallet first.');
       return;
     }
 
     setIsApproving(true);
-    setProcessingStep('USDT 승인 중...');
+    setProcessingStep('Approving USDT...');
 
     try {
       const contentType = getContentTypeFromPrice(reservation.amount);
@@ -70,27 +70,27 @@ export function PaymentDialog({ open, onOpenChange, reservation, onConfirm }: Pa
       setIsApproved(true);
       setIsApproving(false);
       setProcessingStep('');
-      toast.success('USDT 승인이 완료되었습니다. 이제 결제할 수 있습니다.');
+      toast.success('USDT approval completed. You can now proceed with payment.');
     } catch (error: any) {
       setIsApproving(false);
       setProcessingStep('');
-      console.error('Approve 실패:', error);
+      console.error('Approve failed:', error);
     }
   };
 
   const handlePurchase = async () => {
     if (!isConnected || !account) {
-      toast.error('지갑을 먼저 연결해주세요.');
+      toast.error('Please connect your wallet first.');
       return;
     }
 
     if (!isApproved) {
-      toast.error('먼저 USDT 승인을 완료해주세요.');
+      toast.error('Please complete USDT approval first.');
       return;
     }
 
     setIsPurchasing(true);
-    setProcessingStep('구매 트랜잭션 전송 중...');
+    setProcessingStep('Sending purchase transaction...');
 
     try {
       const contentType = getContentTypeFromPrice(reservation.amount);
@@ -100,27 +100,73 @@ export function PaymentDialog({ open, onOpenChange, reservation, onConfirm }: Pa
       setIsConfirmed(true);
       setProcessingStep('');
       
-      toast.success('결제가 완료되었습니다!');
+      toast.success('Payment completed!');
       
-      setTimeout(() => {
-        // purchaseContent는 { receipt, hash }를 반환
-        const txHash = (result as any).hash || (result as any).transactionHash || (result as any)?.receipt?.transactionHash;
-        if (txHash) {
-          console.log('Transaction hash:', txHash);
-          onConfirm(txHash);
-        } else {
-          console.error('Transaction hash not found in result:', result);
-          toast.error('트랜잭션 해시를 가져올 수 없습니다.');
+      // purchaseContent returns { receipt, hash }
+      const txHash = (result as any).hash || (result as any).transactionHash || (result as any)?.receipt?.transactionHash;
+      
+      if (txHash) {
+        console.log('Transaction hash:', txHash);
+        
+        // Send payment information to API server on successful payment
+        try {
+          const contentType = getContentTypeFromPrice(reservation.amount);
+          const priceAmount = getPriceFromContentType(contentType);
+          
+          const paymentData = {
+            customerEmail: reservation.customerEmail || '',
+            location: reservation.location,
+            date: reservation.date,
+            timeSlot: reservation.time, // Time Slot
+            paymentMethod: reservation.paymentMethod,
+            totalAmount: priceAmount, // wei unit, string format
+          };
+
+          // Include Authorization header if accessToken exists
+          const headers: HeadersInit = {
+            'Content-Type': 'application/json',
+          };
+
+          if (accessToken) {
+            headers['Authorization'] = `Bearer ${accessToken}`;
+          }
+
+          const response = await fetch(`${CONTRACT_CONFIG.API_BASE_URL}/api/v1/payments`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(paymentData),
+          });
+
+          if (response.ok) {
+            const responseData = await response.json();
+            console.log('Payment information sent to API server:', responseData);
+          } else {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Failed to send payment information to API server:', errorData);
+            // Ignore error even if API send fails, since payment is completed
+          }
+        } catch (apiError: any) {
+          console.error('Error sending payment information to API server:', apiError);
+          // Ignore error even if API send fails, since payment is completed
         }
-        setIsConfirmed(false);
-        setIsApproved(false);
+
+        setTimeout(() => {
+          onConfirm(txHash);
+          setIsConfirmed(false);
+          setIsApproved(false);
+          setProcessingStep('');
+          onOpenChange(false);
+        }, 2000);
+      } else {
+        console.error('Transaction hash not found in result:', result);
+        toast.error('Failed to get transaction hash.');
+        setIsPurchasing(false);
         setProcessingStep('');
-        onOpenChange(false);
-      }, 2000);
+      }
     } catch (error: any) {
       setIsPurchasing(false);
       setProcessingStep('');
-      console.error('Purchase 실패:', error);
+      console.error('Purchase failed:', error);
     }
   };
 
@@ -164,7 +210,7 @@ export function PaymentDialog({ open, onOpenChange, reservation, onConfirm }: Pa
           {isApproved && !isConfirmed && (
             <div className="flex items-center justify-center gap-3 p-4 bg-green-500/10 text-green-600 rounded-xl">
               <CheckCircle className="w-5 h-5" />
-              <span>USDT 승인 완료 - 결제할 수 있습니다</span>
+              <span>USDT approval completed - You can proceed with payment</span>
             </div>
           )}
 
@@ -173,10 +219,10 @@ export function PaymentDialog({ open, onOpenChange, reservation, onConfirm }: Pa
             <div className="flex flex-col items-center justify-center gap-3 p-4 bg-secondary rounded-xl">
               <Loader2 className="w-5 h-5 animate-spin" />
               <span className="text-sm">
-                {processingStep || '트랜잭션 처리 중...'}
+                {processingStep || 'Processing transaction...'}
               </span>
               <span className="text-xs text-muted-foreground">
-                MetaMask에서 트랜잭션을 확인해주세요.
+                Please confirm the transaction in MetaMask.
               </span>
             </div>
           )}
@@ -184,7 +230,7 @@ export function PaymentDialog({ open, onOpenChange, reservation, onConfirm }: Pa
           {isConfirmed && (
             <div className="flex items-center justify-center gap-3 p-4 bg-green-500/10 text-green-600 rounded-xl">
               <CheckCircle className="w-5 h-5" />
-              <span>결제가 완료되었습니다!</span>
+              <span>Payment completed!</span>
             </div>
           )}
         </div>
