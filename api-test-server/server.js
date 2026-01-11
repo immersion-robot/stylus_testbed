@@ -1,8 +1,8 @@
-// API 테스트 서버
-// 사용법: 
-//   1. npm install (최초 1회)
-//   2. npm start 또는 node server.js
-// 포트: 8888
+// API Test Server
+// Usage:
+//   1. npm install (first time only)
+//   2. npm start or node server.js
+// Port: 8888
 
 const express = require('express');
 const cors = require('cors');
@@ -12,14 +12,14 @@ const fs = require('fs');
 const app = express();
 const PORT = 8888;
 
-// CORS 설정 (프론트엔드에서 요청 허용)
+// CORS configuration (allow requests from frontend)
 app.use(cors());
 app.use(express.json());
 
-// 파일 업로드를 위한 multer 설정
+// Multer configuration for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    // 업로드된 파일을 저장할 디렉토리
+    // Directory to store uploaded files
     const uploadDir = path.join(__dirname, 'uploads');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
@@ -27,10 +27,10 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    // query string 또는 body에서 fileId 가져오기
+    // Get fileId from query string or body
     const fileId = req.query.fileId || req.body.fileId || `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const ext = path.extname(file.originalname);
-    // fileId와 원본 파일명 조합
+    // Combine fileId with original filename
     const originalName = path.basename(file.originalname, ext);
     cb(null, `${fileId}_${originalName}${ext}`);
   }
@@ -39,11 +39,46 @@ const storage = multer.diskStorage({
 const upload = multer({ 
   storage: storage,
   limits: {
-    fileSize: 100 * 1024 * 1024 // 100MB 제한
+    fileSize: 100 * 1024 * 1024 // 100MB limit
   }
 });
 
-// 요청 로깅 미들웨어
+// Payment data storage file
+const PAYMENTS_FILE = path.join(__dirname, 'payments.json');
+
+// Load payments from JSON file
+let paymentsStore = new Map();
+function loadPayments() {
+  try {
+    if (fs.existsSync(PAYMENTS_FILE)) {
+      const data = fs.readFileSync(PAYMENTS_FILE, 'utf8');
+      const payments = JSON.parse(data);
+      paymentsStore = new Map(Object.entries(payments));
+      console.log(`  ✓ Loaded ${paymentsStore.size} payment(s) from ${PAYMENTS_FILE}`);
+    } else {
+      console.log(`  ✓ No existing payments file, starting fresh`);
+    }
+  } catch (error) {
+    console.error('  ✗ Error loading payments:', error);
+    paymentsStore = new Map();
+  }
+}
+
+// Save payments to JSON file
+function savePayments() {
+  try {
+    const paymentsObj = Object.fromEntries(paymentsStore);
+    fs.writeFileSync(PAYMENTS_FILE, JSON.stringify(paymentsObj, null, 2), 'utf8');
+    console.log(`  ✓ Saved ${paymentsStore.size} payment(s) to ${PAYMENTS_FILE}`);
+  } catch (error) {
+    console.error('  ✗ Error saving payments:', error);
+  }
+}
+
+// Load payments on server start
+loadPayments();
+
+// Request logging middleware
 app.use((req, res, next) => {
   console.log(`\n[${new Date().toISOString()}] ${req.method} ${req.path}`);
   if (req.body && Object.keys(req.body).length > 0) {
@@ -55,7 +90,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// 1. 지갑 로그인 API
+// 1. Wallet Login API
 // POST /api/v1/auth/login/wallet
 app.post('/api/v1/auth/login/wallet', (req, res) => {
   const { walletAddress, chainID } = req.body;
@@ -69,7 +104,7 @@ app.post('/api/v1/auth/login/wallet', (req, res) => {
     });
   }
 
-  // Mock 응답 (실제로는 데이터베이스에서 사용자 조회 및 토큰 생성)
+  // Mock response (in production, query user from database and generate tokens)
   const response = {
     accessToken: 'dummy_access_token_' + Date.now(),
     refreshToken: 'dummy_refresh_token_' + Date.now()
@@ -79,7 +114,7 @@ app.post('/api/v1/auth/login/wallet', (req, res) => {
   res.json(response);
 });
 
-// 2. Presigned URL 발급 API
+// 2. Presigned URL API
 // POST /api/v1/uploads/presigned-url
 app.post('/api/v1/uploads/presigned-url', (req, res) => {
   const authHeader = req.headers.authorization;
@@ -102,7 +137,7 @@ app.post('/api/v1/uploads/presigned-url', (req, res) => {
     });
   }
 
-  // Category 검증
+  // Category validation
   const validCategories = ['AD_VIDEO', 'AD_IMAGE', 'THUMBNAIL'];
   if (!validCategories.includes(category)) {
     return res.status(400).json({
@@ -111,21 +146,21 @@ app.post('/api/v1/uploads/presigned-url', (req, res) => {
     });
   }
 
-  // UUID 생성 (간단한 버전)
+  // Generate UUID (simple version)
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(2, 9);
   const fileId = `file_${timestamp}_${random}`;
   
-  // Mock S3 presigned URL (실제로는 AWS SDK로 생성)
-  // 10분 후 만료되는 presigned URL 시뮬레이션
+  // Mock S3 presigned URL (in production, generate using AWS SDK)
+  // Simulate presigned URL that expires after 10 minutes
   const uploadUrl = `https://s3.ap-northeast-2.amazonaws.com/my-bucket/${category.toLowerCase()}/${fileId}_${filename}?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=test%2F20240101%2Fap-northeast-2%2Fs3%2Faws4_request&X-Amz-Date=${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z&X-Amz-Expires=600&X-Amz-SignedHeaders=host&X-Amz-Signature=mock_signature_for_testing`;
   
-  // Mock CDN URL (업로드 완료 후 사용할 깔끔한 URL)
-  // 실제 환경에서는 S3에 업로드된 후 CDN URL을 반환하지만, 테스트 환경에서는 서버의 uploads 폴더를 가리킴
+  // Mock CDN URL (clean URL to use after upload completion)
+  // In production, return CDN URL after uploading to S3, but in test environment, point to server's uploads folder
   const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${fileId}_${filename}`;
 
   const response = {
-    uploadUrl: `${req.protocol}://${req.get('host')}/api/v1/uploads/upload?fileId=${fileId}&category=${category}`, // 테스트 서버의 업로드 엔드포인트로 변경
+    uploadUrl: `${req.protocol}://${req.get('host')}/api/v1/uploads/upload?fileId=${fileId}&category=${category}`, // Changed to test server's upload endpoint
     fileUrl,
     fileId
   };
@@ -134,8 +169,8 @@ app.post('/api/v1/uploads/presigned-url', (req, res) => {
   res.json(response);
 });
 
-// 2-1. 파일 업로드 엔드포인트 (프록시 방식, S3 대신 서버에 저장)
-// 파일 업로드 로깅 미들웨어 (multer 이전에 실행되어야 함)
+// 2-1. File Upload Endpoint (proxy mode, save to server instead of S3)
+// File upload logging middleware (must run before multer)
 app.use('/api/v1/uploads/upload', (req, res, next) => {
   if (req.method === 'POST') {
     console.log(`\n[${new Date().toISOString()}] ${req.method} ${req.path}`);
@@ -176,7 +211,7 @@ app.post('/api/v1/uploads/upload', upload.single('file'), (req, res) => {
     });
   }
 
-  // 업로드 성공 응답
+  // Upload success response
   const finalFileId = fileId || `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
   
@@ -195,10 +230,10 @@ app.post('/api/v1/uploads/upload', upload.single('file'), (req, res) => {
   res.json(response);
 });
 
-// 업로드된 파일 서빙 (정적 파일)
+// Serve uploaded files (static files)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// 3. 광고 소재 등록 API
+// 3. Ad Creative Registration API
 // POST /api/v1/ad-creatives
 app.post('/api/v1/ad-creatives', (req, res) => {
   const authHeader = req.headers.authorization;
@@ -222,7 +257,7 @@ app.post('/api/v1/ad-creatives', (req, res) => {
     duration 
   });
   
-  // 필수 필드 검증
+  // Required field validation
   if (!title || !type || !mediaUrl || !width || !height) {
     return res.status(400).json({
       error: 'Missing required fields',
@@ -230,7 +265,7 @@ app.post('/api/v1/ad-creatives', (req, res) => {
     });
   }
 
-  // Type 검증
+  // Type validation
   if (type !== 'VIDEO' && type !== 'IMAGE') {
     return res.status(400).json({
       error: 'Invalid type',
@@ -238,7 +273,7 @@ app.post('/api/v1/ad-creatives', (req, res) => {
     });
   }
 
-  // Width, Height 검증 (숫자여야 함)
+  // Width, Height validation (must be numbers)
   if (isNaN(Number(width)) || isNaN(Number(height))) {
     return res.status(400).json({
       error: 'Invalid dimensions',
@@ -246,33 +281,34 @@ app.post('/api/v1/ad-creatives', (req, res) => {
     });
   }
 
-  // VIDEO 타입인데 duration이 없으면 경고 (필수는 아님)
+  // Warning if VIDEO type without duration (not required)
   if (type === 'VIDEO' && !duration) {
     console.log('  ⚠ Warning: VIDEO type without duration');
   }
 
-  // Mock 응답 (실제로는 데이터베이스에 저장하고 ID 생성)
+  // Mock response (in production, save to database and generate ID)
+  // Ad creatives are registered in 'Active' status immediately upon registration
   const adCreativeId = `crt_${Date.now()}`;
   const response = {
     adCreativeId,
-    status: 'REVIEW_PENDING'
+    status: 'Active'
   };
 
   console.log('  ✓ Response:', response);
   res.json(response);
 });
 
-// 4. 결제 정보 저장 API
+// 4. Payment Information Storage API
 // POST /api/v1/payments
 app.post('/api/v1/payments', (req, res) => {
   const authHeader = req.headers.authorization;
   
-  // Authorization은 선택사항 (accessToken이 있을 수 있음)
+  // Authorization is optional (accessToken may be present)
   if (authHeader && authHeader.startsWith('Bearer ')) {
     console.log('  Authorization:', authHeader.substring(0, 30) + '...');
   }
 
-  const { customerEmail, location, date, timeSlot, paymentMethod, totalAmount } = req.body;
+  const { customerEmail, location, date, timeSlot, paymentMethod, totalAmount, transactionHash, title } = req.body;
   
   console.log('  Payment Request:', { 
     customerEmail, 
@@ -280,18 +316,28 @@ app.post('/api/v1/payments', (req, res) => {
     date, 
     timeSlot, 
     paymentMethod, 
-    totalAmount 
+    totalAmount,
+    transactionHash,
+    title
   });
   
-  // 필수 필드 검증
+  // Required field validation
   if (!customerEmail || !location || !date || !timeSlot || !paymentMethod || !totalAmount) {
     return res.status(400).json({
       error: 'Missing required fields',
       message: 'customerEmail, location, date, timeSlot, paymentMethod, and totalAmount are required'
     });
   }
+  
+  // Transaction hash validation (save if present)
+  if (transactionHash && typeof transactionHash !== 'string') {
+    return res.status(400).json({
+      error: 'Invalid transactionHash format',
+      message: 'transactionHash must be a string'
+    });
+  }
 
-  // Email 형식 검증 (간단한 검증)
+  // Email format validation (simple validation)
   if (!customerEmail.includes('@')) {
     return res.status(400).json({
       error: 'Invalid email format',
@@ -299,7 +345,7 @@ app.post('/api/v1/payments', (req, res) => {
     });
   }
 
-  // Payment Method 검증
+  // Payment Method validation
   if (paymentMethod !== 'USDT') {
     return res.status(400).json({
       error: 'Invalid payment method',
@@ -307,7 +353,7 @@ app.post('/api/v1/payments', (req, res) => {
     });
   }
 
-  // Total Amount 검증 (wei 단위, string 형식이어야 함)
+  // Total Amount validation (wei unit, must be string format)
   if (typeof totalAmount !== 'string' || !/^\d+$/.test(totalAmount)) {
     return res.status(400).json({
       error: 'Invalid totalAmount format',
@@ -315,7 +361,7 @@ app.post('/api/v1/payments', (req, res) => {
     });
   }
 
-  // Date 형식 검증 (YYYY-MM-DD)
+  // Date format validation (YYYY-MM-DD)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return res.status(400).json({
       error: 'Invalid date format',
@@ -323,7 +369,7 @@ app.post('/api/v1/payments', (req, res) => {
     });
   }
 
-  // Time Slot 형식 검증 (HH:MM-HH:MM 또는 HH:MM)
+  // Time Slot format validation (HH:MM-HH:MM or HH:MM)
   if (!/^\d{2}:\d{2}(-\d{2}:\d{2})?$/.test(timeSlot)) {
     return res.status(400).json({
       error: 'Invalid timeSlot format',
@@ -331,9 +377,9 @@ app.post('/api/v1/payments', (req, res) => {
     });
   }
 
-  // Mock 응답 (실제로는 데이터베이스에 저장하고 ID 생성)
+  // Save payment data (in production, use a database)
   const paymentId = `pay_${Date.now()}`;
-  const response = {
+  const paymentData = {
     paymentId,
     status: 'COMPLETED',
     customerEmail,
@@ -342,14 +388,62 @@ app.post('/api/v1/payments', (req, res) => {
     timeSlot,
     paymentMethod,
     totalAmount,
+    transactionHash: transactionHash || null,
+    title: title || null,
     timestamp: new Date().toISOString()
   };
 
-  console.log('  ✓ Payment information saved:', response);
-  res.json(response);
+  // Store payment data by transaction hash if available, otherwise by payment ID
+  if (transactionHash) {
+    paymentsStore.set(transactionHash.toLowerCase(), paymentData);
+  }
+  paymentsStore.set(paymentId, paymentData);
+
+  // Save to JSON file
+  savePayments();
+
+  console.log('  ✓ Payment information saved:', paymentData);
+  console.log(`  ✓ Total payments stored: ${paymentsStore.size}`);
+  
+  res.json(paymentData);
 });
 
-// Health check 엔드포인트
+// 4-1. Payment Information Retrieval API
+// GET /api/v1/payments/:transactionHash
+app.get('/api/v1/payments/:transactionHash', (req, res) => {
+  const authHeader = req.headers.authorization;
+  
+  // Authorization is optional (accessToken may be present)
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    console.log('  Authorization:', authHeader.substring(0, 30) + '...');
+  }
+
+  const { transactionHash } = req.params;
+  
+  console.log('  Get Payment Request:', { transactionHash });
+  
+  if (!transactionHash) {
+    return res.status(400).json({
+      error: 'Missing transactionHash',
+      message: 'transactionHash is required'
+    });
+  }
+
+  // Find payment data by transaction hash
+  const paymentData = paymentsStore.get(transactionHash.toLowerCase());
+  
+  if (!paymentData) {
+    return res.status(404).json({
+      error: 'Not Found',
+      message: `Payment data not found for transaction hash: ${transactionHash}`
+    });
+  }
+
+  console.log('  ✓ Payment data found:', paymentData);
+  res.json(paymentData);
+});
+
+// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
@@ -359,7 +453,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// 루트 경로
+// Root path
 app.get('/', (req, res) => {
   res.json({
     message: 'API Test Server is running',
@@ -369,13 +463,14 @@ app.get('/', (req, res) => {
       fileUpload: 'POST /api/v1/uploads/upload',
       adCreative: 'POST /api/v1/ad-creatives',
       payment: 'POST /api/v1/payments',
+      getPayment: 'GET /api/v1/payments/:transactionHash',
       health: 'GET /health'
     },
     port: PORT
   });
 });
 
-// 404 핸들러
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({
     error: 'Not Found',
@@ -386,13 +481,14 @@ app.use((req, res) => {
       'POST /api/v1/uploads/upload',
       'POST /api/v1/ad-creatives',
       'POST /api/v1/payments',
+      'GET /api/v1/payments/:transactionHash',
       'GET /health',
       'GET /'
     ]
   });
 });
 
-// 서버 시작
+// Start server
 app.listen(PORT, () => {
   console.log('='.repeat(70));
   console.log(`🚀 API Test Server is running on http://localhost:${PORT}`);
@@ -403,12 +499,13 @@ app.listen(PORT, () => {
   console.log(`   POST   http://localhost:${PORT}/api/v1/uploads/upload`);
   console.log(`   POST   http://localhost:${PORT}/api/v1/ad-creatives`);
   console.log(`   POST   http://localhost:${PORT}/api/v1/payments`);
+  console.log(`   GET    http://localhost:${PORT}/api/v1/payments/:transactionHash`);
   console.log(`   GET    http://localhost:${PORT}/health`);
   console.log(`   GET    http://localhost:${PORT}/`);
   console.log('\n💡 Press Ctrl+C to stop the server\n');
 });
 
-// 에러 핸들링
+// Error handling
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
 });
