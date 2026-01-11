@@ -120,6 +120,8 @@ export function PaymentDialog({ open, onOpenChange, reservation, onConfirm }: Pa
             timeSlot: reservation.time, // Time Slot
             paymentMethod: reservation.paymentMethod,
             totalAmount: priceAmount, // wei unit, string format
+            transactionHash: txHash, // Include transaction hash
+            title: reservation.contentTitle, // Include content title
           };
 
           // Include Authorization header if accessToken exists

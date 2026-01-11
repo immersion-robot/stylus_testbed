@@ -12,39 +12,61 @@ import { RouteTrackingDialog } from '@/components/RouteTrackingDialog';
 import { Reservation } from '@/types/content';
 import { useMetaMask } from '@/hooks/useMetaMask';
 import { useContract } from '@/hooks/useContract';
-import { CONTENT_TYPE_PRICE } from '@/config/contracts';
+import { CONTRACT_CONFIG } from '@/config/contracts';
+
+interface PaymentData {
+  paymentId: string;
+  status: string;
+  customerEmail: string;
+  location: string;
+  date: string;
+  timeSlot: string;
+  paymentMethod: string;
+  totalAmount: string;
+  timestamp: string;
+  transactionHash?: string;
+  title?: string;
+}
 
 const Reservations = () => {
   const { reservations, contents } = useContent();
-  const { account, isConnected } = useMetaMask();
+  const { account, isConnected, accessToken } = useMetaMask();
   const { getPurchaseEvents, getWaypoint } = useContract();
   const [routeDialogOpen, setRouteDialogOpen] = useState(false);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [contractReservations, setContractReservations] = useState<Reservation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const reservationsRef = useRef<Reservation[]>([]);
-
-  // Restore metadata from localStorage
-  const getStoredReservations = (): Reservation[] => {
-    try {
-      const stored = localStorage.getItem(`reservations_${account}`);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
+  
+  // Fetch payment data from API by transaction hash
+  const fetchPaymentData = async (transactionHash: string): Promise<PaymentData | null> => {
+    if (!accessToken) {
+      return null;
     }
-  };
-
-  // Save metadata to localStorage
-  const saveReservationsToStorage = (reservationsData: Reservation[]) => {
-    if (!account) return;
+    
     try {
-      localStorage.setItem(`reservations_${account}`, JSON.stringify(reservationsData));
+      const url = `${CONTRACT_CONFIG.API_BASE_URL}/api/v1/payments/${transactionHash}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        return null;
+      }
+      
+      return await response.json();
     } catch (error) {
-      console.error('Failed to save reservations to localStorage:', error);
+      console.error('Failed to fetch payment data:', error);
+      return null;
     }
   };
 
-  // Fetch purchase history from contract (on initial load and when reservations/contents change)
+  // Fetch purchase history from contract
   useEffect(() => {
     const fetchPurchases = async () => {
       if (!isConnected || !account) {
@@ -71,55 +93,37 @@ const Reservations = () => {
             // Get waypoint
             const waypoint = await getWaypoint(event.tokenId);
             
-            // Default location (map by contentType or use default)
+            // Fetch payment data from API
+            const paymentData = await fetchPaymentData(event.transactionHash);
+            
+            // Use API data if available, otherwise use fallback
+            const contentTitle = paymentData?.title || `Content Purchase #${event.tokenId}`;
+            const date = paymentData?.date || (() => {
+              const purchaseDate = new Date(Number(event.purchaseTime) * 1000);
+              return purchaseDate.toISOString().split('T')[0];
+            })();
+            
+            const time = paymentData?.timeSlot || (() => {
+              const purchaseDate = new Date(Number(event.purchaseTime) * 1000);
+              return purchaseDate.toTimeString().split(' ')[0].slice(0, 5);
+            })();
+            
+            const customerEmail = paymentData?.customerEmail || '';
+            
+            // Default location map
             const locationMap: Record<number, string> = {
               1: 'Gangnam, Seoul',
               2: 'Samsung, Seoul',
               3: 'Myeongdong, Seoul',
             };
             
-            // Restore stored metadata from localStorage
-            const storedReservations = getStoredReservations();
-            const storedReservation = storedReservations.find(
-              r => r.tokenId === event.tokenId || r.transactionHash?.toLowerCase() === event.transactionHash.toLowerCase()
-            );
-            
-            // Match by same tokenId or transactionHash from existing reservation data (preserve metadata)
-            const existingReservation = reservationsRef.current.find(
-              r => r.tokenId === event.tokenId || r.transactionHash?.toLowerCase() === event.transactionHash.toLowerCase()
-            ) || storedReservation;
-            
-            // Match by transactionHash from ContentContext reservations to get selected date/time
-            const matchedReservation = reservations.find(
-              r => r.transactionHash?.toLowerCase() === event.transactionHash.toLowerCase()
-            );
-            
-            // Match by contentId from ContentContext contents to get actual content title
-            const contentId = existingReservation?.contentId || matchedReservation?.contentId || `content-${event.tokenId}`;
-            const matchedContent = contents.find(c => c.id === contentId);
-            
-            // Priority: existing/stored data (preserve metadata) > matchedContent > matchedReservation > default
-            const contentTitle = existingReservation?.contentTitle || 
-              matchedContent?.title || 
-              matchedReservation?.contentTitle || 
-              `Content Purchase #${event.tokenId}`;
-            
-            // Use selected date/time if matched reservation exists, otherwise use purchase time
-            // Use existing/stored data first if available (preserve metadata)
-            const date = existingReservation?.date || matchedReservation?.date || (() => {
-              const purchaseDate = new Date(Number(event.purchaseTime) * 1000);
-              return purchaseDate.toISOString().split('T')[0];
-            })();
-            const time = existingReservation?.time || matchedReservation?.time || (() => {
-              const purchaseDate = new Date(Number(event.purchaseTime) * 1000);
-              return purchaseDate.toTimeString().split(' ')[0].slice(0, 5);
-            })();
+            const location = paymentData?.location || locationMap[contentType] || 'Gangnam, Seoul';
             
             return {
               id: event.tokenId,
-              contentId,
+              contentId: `content-${event.tokenId}`,
               contentTitle,
-              location: existingReservation?.location || matchedReservation?.location || locationMap[contentType] || 'Gangnam, Seoul',
+              location,
               date,
               time,
               status: 'completed' as const,
@@ -128,8 +132,8 @@ const Reservations = () => {
               transactionHash: event.transactionHash,
               tokenId: event.tokenId,
               contentType,
-              waypoint: existingReservation?.waypoint || (waypoint > 0 ? waypoint : 1), // Preserve existing waypoint, use newly fetched value if not available
-              customerEmail: existingReservation?.customerEmail || matchedReservation?.customerEmail,
+              waypoint: waypoint > 0 ? waypoint : 1,
+              customerEmail,
             };
           })
         );
@@ -143,10 +147,6 @@ const Reservations = () => {
         
         setContractReservations(contractReservationsData);
         reservationsRef.current = contractReservationsData;
-        
-        // Save metadata to localStorage (save only metadata, exclude waypoint)
-        const metadataToStore = contractReservationsData.map(({ waypoint, ...rest }) => rest);
-        saveReservationsToStorage(metadataToStore);
       } catch (error) {
         console.error('Failed to fetch purchase history:', error);
         toast.error('Failed to load purchase history.');
@@ -156,9 +156,8 @@ const Reservations = () => {
     };
 
     fetchPurchases();
-    // reservations and contents are needed to get metadata on initial load
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected, account, getPurchaseEvents, getWaypoint, reservations, contents]);
+  }, [isConnected, account, getPurchaseEvents, getWaypoint, accessToken]);
 
   // Separate useEffect to update only waypoint (preserve existing data)
   useEffect(() => {
@@ -194,10 +193,6 @@ const Reservations = () => {
         if (isMounted) {
           setContractReservations(updatedReservations);
           reservationsRef.current = updatedReservations;
-          
-          // Save metadata to localStorage (save only metadata, exclude waypoint)
-          const metadataToStore = updatedReservations.map(({ waypoint, ...rest }) => rest);
-          saveReservationsToStorage(metadataToStore);
         }
       } catch (error) {
         console.error('Failed to update waypoint:', error);
@@ -264,15 +259,12 @@ const Reservations = () => {
           )}
         </div>
 
-        {reservation.tokenId && (
+        {reservation.tokenId && reservation.waypoint && (
           <div className="mt-4 pt-4 border-t border-border">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs text-muted-foreground">No. {reservation.tokenId}</p>
-              {reservation.waypoint && (
-                <Badge variant="outline" className="text-xs">
-                  Waypoint: {['A', 'B', 'C', 'D', 'E'][reservation.waypoint - 1] || 'A'}
-                </Badge>
-              )}
+            <div className="flex items-center justify-end mb-2">
+              <Badge variant="outline" className="text-xs">
+                Waypoint: {['A', 'B', 'C', 'D', 'E'][reservation.waypoint - 1] || 'A'}
+              </Badge>
             </div>
           </div>
         )}
@@ -329,11 +321,6 @@ const Reservations = () => {
             <p className="text-muted-foreground">
               Track your completed broadcasts.
             </p>
-            {account && (
-              <p className="text-sm text-muted-foreground mt-2">
-                Connected: {account.slice(0, 6)}...{account.slice(-4)}
-              </p>
-            )}
           </div>
 
           {!isConnected ? (
